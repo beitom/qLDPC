@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -42,18 +42,16 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Set up Python
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           python-version: 3.12
           enable-cache: true
           cache-dependency-glob: |
             **/pyproject.toml
       - name: Install package and dependencies
-        run: |
-          uv venv
-          uv pip install '.[dev]'
+        run: uv sync --extra dev
       - name: Run all checks
         shell: cmd
         run: |
