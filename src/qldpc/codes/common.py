@@ -400,8 +400,9 @@ class ClassicalCode(AbstractCode):
                 - k is the number of encoded ("logical") bits
                 - d is the code distance (or an upper bound on code distance).
         """
+        dimension = self.dimension
         distance = self.get_distance(bound=bound, vector=None, **bound_kwargs)
-        return len(self), self.dimension, distance
+        return len(self), dimension, distance
 
     def get_distance(
         self,
@@ -1533,8 +1534,9 @@ class QuditCode(AbstractCode):
                 - k is the number of encoded ("logical") qudits
                 - d is the code distance (or an upper bound on code distance).
         """
+        dimension = self.dimension
         distance = self.get_distance(bound=bound, **bound_kwargs)
-        return len(self), self.dimension, distance
+        return len(self), dimension, distance
 
     def get_distance(self, *, bound: int | bool | None = None, **bound_kwargs: Any) -> int | float:
         f"""Compute (or upper bound) the minimum weight of nontrivial logical operators.
