@@ -884,6 +884,9 @@ class QuditCode(AbstractCode):
         if not self._is_subsystem_code:
             code._dimension = len(code) - len(matrix_rref)
         code._distance = self._distance
+        code._stabilizer_ops = self._stabilizer_ops
+        code._gauge_ops = self._gauge_ops
+        code._logical_ops = self._logical_ops
         return code
 
     @staticmethod
@@ -2143,6 +2146,9 @@ class CSSCode(QuditCode):
         code._distance = self._distance
         code._distance_x = self._distance_x
         code._distance_z = self._distance_z
+        code._stabilizer_ops = self._stabilizer_ops
+        code._gauge_ops = self._gauge_ops
+        code._logical_ops = self._logical_ops
         return code
 
     @staticmethod
