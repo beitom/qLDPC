@@ -82,6 +82,8 @@ class AbstractCode(abc.ABC):
     _dimension: int | None = None
     _distance: int | float | None = None
 
+    _is_canonicalized: bool = False
+
     def __init__(
         self,
         matrix: AbstractCode | IntegerArray | Sequence[Sequence[int]],
@@ -102,6 +104,8 @@ class AbstractCode(abc.ABC):
                     f"Field argument {field} is inconsistent with the given code, which is defined"
                     f" over F_{self._field.order}"
                 )
+
+            self._is_canonicalized = matrix._is_canonicalized
 
         elif isinstance(matrix, galois.FieldArray):
             self._field = galois.GF(field) if field else type(matrix)
@@ -260,11 +264,14 @@ class ClassicalCode(AbstractCode):
     @functools.cached_property
     def canonicalized(self) -> ClassicalCode:
         """The same code with its parity matrix in reduced row echelon form."""
+        if self._is_canonicalized:
+            return self
         matrix_rref = self.matrix.row_reduce()
         matrix_rref = matrix_rref[np.any(matrix_rref, axis=1), :]
         code = ClassicalCode(matrix_rref, self.field.order)
         code._dimension = len(self) - len(matrix_rref)
         code._distance = self._distance
+        code._is_canonicalized = True
         return code
 
     def __len__(self) -> int:
@@ -878,6 +885,8 @@ class QuditCode(AbstractCode):
     @functools.cached_property
     def canonicalized(self) -> QuditCode:
         """The same code with its parity matrix in reduced row echelon form."""
+        if self._is_canonicalized:
+            return self
         matrix_rref = self.matrix.row_reduce()
         matrix_rref = matrix_rref[np.any(matrix_rref, axis=1), :]
         code = QuditCode(matrix_rref, self.field.order, is_subsystem_code=self._is_subsystem_code)
@@ -887,6 +896,7 @@ class QuditCode(AbstractCode):
         code._stabilizer_ops = self._stabilizer_ops
         code._gauge_ops = self._gauge_ops
         code._logical_ops = self._logical_ops
+        code._is_canonicalized = True
         return code
 
     @staticmethod
@@ -2136,6 +2146,8 @@ class CSSCode(QuditCode):
     @functools.cached_property
     def canonicalized(self) -> CSSCode:
         """The same code with its parity matrices in reduced row echelon form."""
+        if self._is_canonicalized:
+            return self
         code = CSSCode(
             self.code_x.canonicalized,
             self.code_z.canonicalized,
@@ -2149,6 +2161,7 @@ class CSSCode(QuditCode):
         code._stabilizer_ops = self._stabilizer_ops
         code._gauge_ops = self._gauge_ops
         code._logical_ops = self._logical_ops
+        code._is_canonicalized = True
         return code
 
     @staticmethod
@@ -2302,8 +2315,8 @@ class CSSCode(QuditCode):
             qudit_locs: npt.NDArray[np.int_] = np.arange(len(self), dtype=int)
 
             # initialize matrix_x and matrix_z
-            matrix_x = self.canonicalized.matrix_x
-            matrix_z = self.canonicalized.matrix_z
+            matrix_x = self.canonicalized.matrix_x.copy()
+            matrix_z = self.canonicalized.matrix_z.copy()
 
             # identify pivots in the X sector, and move X pivots to the back
             pivots_x = math.first_nonzero_cols(matrix_x)
@@ -2357,8 +2370,8 @@ class CSSCode(QuditCode):
             num_gauges = self.gauge_dimension
 
             # canonicalized parity check matrices with qudits in the same order as above
-            checks_x = self.canonicalized.matrix_x[:, qudit_locs]
-            checks_z = self.canonicalized.matrix_z[:, qudit_locs]
+            checks_x = self.canonicalized.matrix_x.copy()[:, qudit_locs]
+            checks_z = self.canonicalized.matrix_z.copy()[:, qudit_locs]
 
             # row reduce X-type stabilizers + parity checks to ensure that gauge ops at the bottom
             permutation_x = _join_slices(cols_sx, cols_gl, cols_sz)
