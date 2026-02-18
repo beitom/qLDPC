@@ -26,10 +26,12 @@ from .sinter import (
     CompiledSequentialWindowDecoder,
     CompiledSinterDecoder,
     CompiledSubgraphDecoder,
+    SequentialSinterDecoder,
     SequentialWindowDecoder,
     SinterDecoder,
     SlidingWindowDecoder,
     SubgraphDecoder,
+    SubgraphSinterDecoder,
 )
 
 __all__ = [
@@ -56,8 +58,10 @@ __all__ = [
     "CompiledSequentialWindowDecoder",
     "CompiledSinterDecoder",
     "CompiledSubgraphDecoder",
+    "SequentialSinterDecoder",
     "SequentialWindowDecoder",
     "SinterDecoder",
     "SlidingWindowDecoder",
     "SubgraphDecoder",
+    "SubgraphSinterDecoder",
 ]
