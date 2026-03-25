@@ -2116,7 +2116,7 @@ class CSSCode(QuditCode):
         ]
         return self.graph.subgraph(data_nodes + check_nodes)
 
-    def get_graph(self, pauli: PauliXZ) -> galois.FieldArray:
+    def get_graph(self, pauli: PauliXZ) -> nx.DiGraph:
         """Subgragh of the Tanner graph for pauli-type parity checks."""
         assert pauli in PAULIS_XZ
         return self.graph_x if pauli is Pauli.X else self.graph_z
