@@ -38,6 +38,7 @@ from qldpc.abstract import DEFAULT_FIELD_ORDER
 from qldpc.objects import CayleyComplex, ChainComplex, Node, Pauli, PauliXZ, QuditPauli
 
 from .classical import (
+    CyclicCode,
     HammingCode,
     ReedMullerCode,
     RepetitionCode,
@@ -1136,6 +1137,53 @@ class HGPCode(CSSCode):
             code_a_T.get_distance(),
             code_b_T.get_distance(),
         )
+
+
+class CHGPCode(HGPCode):
+    """Cyclic hypergraph product code.
+
+    A CHGPCode is a hypergraph product of CyclicCodes.
+
+    References:
+    - Definitions 1,2 of https://arxiv.org/pdf/2511.09683
+    """
+
+    def __init__(
+        self,
+        bits: tuple[int, int] | int,
+        poly_a: sympy.Basic,
+        poly_b: sympy.Basic | None = None,
+        field: int | None = None,
+    ) -> None:
+        """Construct a cyclic hypergraph product code from two block lengths and two polynomials in one variable,
+        or a symmetric cyclic hypergraph product code from one block length and one polynomial in one variable.
+        """
+
+        bits_a, bits_b = (bits, bits) if isinstance(bits, int) else bits
+        code_a = CyclicCode(bits_a, poly_a, field)
+        code_b = CyclicCode(bits_b, poly_b or poly_a, field)
+
+        super().__init__(code_a, code_b, field)
+
+
+class CRCode(HGPCode):
+    """Repeated cyclic hypergraph product code.
+
+    A CRCode is a hypergraph product of a CyclicCode and a RingCode.
+
+    References:
+    - Definition 3 of https://arxiv.org/pdf/2511.09683
+    """
+
+    def __init__(self, bits: int, poly: sympy.Basic, field: int | None = None) -> None:
+        """Construct a CRCode from a block length and a polynomial in one variable."""
+
+        cyclic_code = CyclicCode(bits, poly, field)
+        distance = cyclic_code.get_distance()
+        ring_bits = int(distance) if distance is not np.nan else 1
+        ring_code = RingCode(ring_bits, field)
+
+        super().__init__(cyclic_code, ring_code, field)
 
 
 class SHPCode(CSSCode):

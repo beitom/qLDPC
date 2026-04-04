@@ -1,5 +1,6 @@
 from .classical import (
     BCHCode,
+    CyclicCode,
     ExtendedHammingCode,
     HammingCode,
     ReedMullerCode,
@@ -24,6 +25,8 @@ from .quantum import (
     BBCode,
     C4Code,
     C6Code,
+    CHGPCode,
+    CRCode,
     FiveQubitCode,
     FiveQuditCode,
     GeneralizedSurfaceCode,
@@ -46,6 +49,7 @@ from .quantum import (
 
 __all__ = [
     "BCHCode",
+    "CyclicCode",
     "ExtendedHammingCode",
     "HammingCode",
     "ReedMullerCode",
@@ -62,6 +66,8 @@ __all__ = [
     "BBCode",
     "C4Code",
     "C6Code",
+    "CHGPCode",
+    "CRCode",
     "FiveQubitCode",
     "FiveQuditCode",
     "GeneralizedSurfaceCode",
