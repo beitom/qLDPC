@@ -603,6 +603,18 @@ def test_generalized_surface_codes(size: int = 3) -> None:
         codes.GeneralizedSurfaceCode(size, dim=1)
 
 
+def test_4d_toric_codes() -> None:
+    """Reproduce Tabe 1 from arxiv:2506.15130v1."""
+    t4_codes = {
+        ((1, 0, 0, 1), (0, 1, 0, 1), (0, 0, 1, 0), (0, 0, 0, 2)): (12, 6, 2),
+        ((1, 0, 0, 1), (0, 1, 0, 1), (0, 0, 1, 1), (0, 0, 0, 3)): (18, 6, 3),
+        ((1, 0, 0, 1), (0, 1, 0, 2), (0, 0, 1, 3), (0, 0, 0, 5)): (30, 6, 4),
+    }
+    for lattice, params in t4_codes.items():
+        code = codes.T4Code(lattice)
+        assert code.get_code_params() == params
+
+
 def test_many_hypercube_code() -> None:
     """Goto's many-hypercube code."""
     for level in range(1, 5):
