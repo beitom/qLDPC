@@ -469,7 +469,7 @@ class ChainComplex:
         return self.ops[degree - 1]
 
     @staticmethod
-    def tensor_product(  # noqa: C901 ignore complexity check
+    def tensor_product(
         chain_a: ChainComplex | npt.NDArray[np.int_] | abstract.RingArray,
         chain_b: ChainComplex | npt.NDArray[np.int_] | abstract.RingArray,
         field: int | None = None,
