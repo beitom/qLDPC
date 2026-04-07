@@ -625,7 +625,7 @@ class SlidingWindowDecoder(SequentialWindowDecoder):
         """
         if not window_size >= stride > 0:  # pragma: no cover
             raise ValueError(
-                f"{self.__name__} must have window_size >= stride > 0"
+                f"{type(self).__name__} must have window_size >= stride > 0"
                 f" (provided window_size, stride: {window_size}, {stride})"
             )
 
