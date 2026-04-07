@@ -23,7 +23,7 @@ import functools
 import itertools
 import math
 import os
-from collections.abc import Collection, Sequence
+from collections.abc import Collection, Iterator, Sequence
 
 import galois
 import networkx as nx
@@ -2047,7 +2047,7 @@ class GeneralizedSurfaceCode(CSSCode):
 
 
 class T4Code(CSSCode):
-    """Four-dimensional (2,2) toric code.
+    """Four-dimensional (2, 2) toric code.
 
     A T4Code depends on a four-dimensional integer lattice.
     The lattice acts on Euclidean four-space by translations.
@@ -2055,13 +2055,13 @@ class T4Code(CSSCode):
     The number of physical qudits is 6 times the volume of the lattice.
     The number of logical qudits is the dimension of the 2nd homology group of T^4, which is 6.
 
-    Combinatorially, a T4Code is the topological CSS code attached to the 3-term sub-complex
-    in the middle of the 5-term chain-complex
+    Homologically, a T4Code is the topological CSS code attached to the 3-term sub-complex in the
+    middle of the 5-term chain-complex
 
-        F[tesseracts] -> F[cubes] -> F[squares] -> F[edges] -> F[vertices]
+        F[vertices] <- F[edges] <- F[faces] <- F[cubes] <- F[tesseracts]
 
-    of T^4 tiled by integer unit tesseracts. Cubes have 6 squares on the boundary,
-    and edges are incident to 6 squares, so stabilizers have weight 6.
+    of T^4 tiled by integer unit tesseracts.  Cubes have 6 faces on the boundary, and edges are
+    incident to 6 faces, so stabilizers have weight 6.
 
     References:
     - https://arxiv.org/pdf/2506.15130v1
@@ -2072,102 +2072,90 @@ class T4Code(CSSCode):
         self,
         matrix: npt.NDArray[np.int_] | Sequence[Sequence[int]],
         field: int | None = None,
+        *,
+        skip_validation: bool = False,
     ) -> None:
-        """Construct a T4Code from a 4x4 integer matrix. The rows generate a 4d lattice."""
+        """Construct a T4Code from a 4x4 integer matrix whose rows generate a 4d lattice."""
+        self._field = galois.GF(field or DEFAULT_FIELD_ORDER)
 
         self.lattice_basis = hermite_normal_form(sympy.Matrix(matrix).T).T[::-1, ::-1]
-        self._field = galois.GF(field or DEFAULT_FIELD_ORDER)
         self.num_vertices = self.lattice_basis.det()
-        self.edges = self.get_edges()
+        self.num_edges = 4 * self.num_vertices
+        self.num_faces = 6 * self.num_vertices
+        self.num_cubes = 4 * self.num_vertices
+
+        self.edges = list(self._iter_edges())
         self.face_basis = [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)]
-        self.face_idx = {p: i for i, p in enumerate(self.face_basis)}
-        D1 = np.vstack([self.d1(n) for n in range(4 * self.num_vertices)])
-        D2 = np.vstack([self.d2(n) for n in range(6 * self.num_vertices)])
-        D3 = np.vstack([self.d3(n) for n in range(4 * self.num_vertices)])
-        self.chain_complex = ChainComplex([D3, D2, D1])
-        self.validate_homology()
-        HX, HZ = D2.T, D3
-        super().__init__(HX, HZ, field)
+        self.face_index = {face: index for index, face in enumerate(self.face_basis)}
 
-    def get_edges(self) -> Sequence[tuple[int, int]]:
-        """Identify edges in the standard integer lattice Z^4 with pairs (i,j)
-        where i in Z^4 is the source vertex and j = 0,1,2,3 is the direction,
-        then project to the torus.
-        """
+        d_1 = np.vstack([self._d_1(edge) for edge in range(self.num_edges)]).T
+        d_2 = np.vstack([self._d_2(face) for face in range(self.num_faces)]).T
+        d_3 = np.vstack([self._d_3(cude) for cude in range(self.num_cubes)]).T
+        self.chain = ChainComplex([d_1, d_2, d_3], skip_validation=skip_validation)
 
+        matrix_x, matrix_z = self.chain.op(2), self.chain.op(3).T
+        assert not isinstance(matrix_x, abstract.RingArray)
+        assert not isinstance(matrix_z, abstract.RingArray)
+        super().__init__(matrix_x, matrix_z, field)
+
+    def _iter_edges(self) -> Iterator[tuple[int, int]]:
+        """Identify edges in the standard integer lattice Z^4."""
         I4 = np.eye(4, dtype=np.int32)
         diag = self.lattice_basis.diagonal()
         vertices = list(itertools.product(*[range(n) for n in diag]))
         cosets = [self.lattice_basis.T.solve(sympy.Matrix(vertex)) % 1 for vertex in vertices]
-        edges = []
-        for i in range(self.num_vertices):
-            for j in range(4):
-                edge = sympy.Matrix(vertices[i]) + sympy.Matrix(I4[j])
+        for source_vertex in range(self.num_vertices):
+            for edge_direction in range(4):
+                edge = sympy.Matrix(vertices[source_vertex]) + sympy.Matrix(I4[edge_direction])
                 coset = self.lattice_basis.T.solve(edge).applyfunc(sympy.frac)
                 k = [coset == c for c in cosets].index(True)
-                edges.append((i, k))
-        return edges
+                yield (source_vertex, k)
 
-    def target_vertex(self, n: int) -> int:
-        return self.edges[n][1]
+    def _ones_vec(
+        self, length: int, positive: Sequence[int], negative: Sequence[int]
+    ) -> galois.FieldArray:
+        """Construct a vector of +/- ones at the given locations."""
+        output = self.field.Zeros(length)
+        output[list(positive)] += self.field(1)
+        output[list(negative)] -= self.field(1)
+        return output
 
-    def d1(self, n: int) -> npt.NDArray[np.int_]:
-        """Boundary operator: F[edges] -> F[vertices]."""
+    def _get_edge_target(self, edge_index: int) -> int:
+        """The "target" vertex of an edge."""
+        return self.edges[edge_index][1]
 
-        IV = self._field.Identity(self.num_vertices)
-        source, target = self.edges[n]
-        return IV[target] - IV[source]
+    def _d_1(self, edge_index: int) -> npt.NDArray[np.int_]:
+        """Boundary operator F[edges] -> F[vertices], evaluated at an edge."""
+        source, target = self.edges[edge_index]
+        return self._ones_vec(self.num_vertices, [target], [source])
 
-    def d2(self, n: int) -> npt.NDArray[np.int_]:
-        """Boundary operator: F[squares] -> F[edges]."""
-
-        I4V = self._field.Identity(4 * self.num_vertices)
-        v, (i, j) = n // 6, self.face_basis[n % 6]
+    def _d_2(self, face_index: int) -> npt.NDArray[np.int_]:
+        """Boundary operator F[faces] -> F[edges], evaluated at a face."""
+        v, (i, j) = face_index // 6, self.face_basis[face_index % 6]
         bottom_edge = 4 * v + i
         left_edge = 4 * v + j
-        right_edge = 4 * self.target_vertex(bottom_edge) + j
-        top_edge = 4 * self.target_vertex(left_edge) + i
-        return I4V[bottom_edge] - I4V[top_edge] + I4V[right_edge] - I4V[left_edge]
+        right_edge = 4 * self._get_edge_target(bottom_edge) + j
+        top_edge = 4 * self._get_edge_target(left_edge) + i
+        return self._ones_vec(self.num_edges, [bottom_edge, right_edge], [top_edge, left_edge])
 
-    def d3(self, n: int) -> npt.NDArray[np.int_]:
-        """Boundary operator: F[cubes] -> F[squares].
+    def _d_3(self, cube_index: int) -> npt.NDArray[np.int_]:
+        """Boundary operator F[cubes] -> F[faces], evaluated at a cube.
 
-        For the boundary of a general cubical complex,
-        see Section 2.2.3 of the book 'Computational Homology' by T. Kaczynski, K. Mischaikow, and M. Mrozek.
+        See Section 2.2.3 of "Computational Homology" by T. Kaczynski, K. Mischaikow, and M. Mrozek.
         """
-
-        I6V = self._field.Identity(6 * self.num_vertices)
-        v, (i, j, k) = n // 4, (idx for idx in range(4) if idx != n % 4)
-        vi = self.target_vertex(4 * v + i)
-        vj = self.target_vertex(4 * v + j)
-        vk = self.target_vertex(4 * v + k)
-        front_face = 6 * v + self.face_idx[(i, j)]
-        left_face = 6 * v + self.face_idx[(i, k)]
-        bottom_face = 6 * v + self.face_idx[(j, k)]
-        top_face = 6 * vi + self.face_idx[(j, k)]
-        right_face = 6 * vj + self.face_idx[(i, k)]
-        back_face = 6 * vk + self.face_idx[(i, j)]
-        return (
-            I6V[top_face]
-            - I6V[bottom_face]
-            + I6V[back_face]
-            - I6V[front_face]
-            + I6V[left_face]
-            - I6V[right_face]
+        v, (i, j, k) = cube_index // 4, (idx for idx in range(4) if idx != cube_index % 4)
+        vi = self._get_edge_target(4 * v + i)
+        vj = self._get_edge_target(4 * v + j)
+        vk = self._get_edge_target(4 * v + k)
+        front_face = 6 * v + self.face_index[(i, j)]
+        left_face = 6 * v + self.face_index[(i, k)]
+        bottom_face = 6 * v + self.face_index[(j, k)]
+        top_face = 6 * vi + self.face_index[(j, k)]
+        right_face = 6 * vj + self.face_index[(i, k)]
+        back_face = 6 * vk + self.face_index[(i, j)]
+        return self._ones_vec(
+            self.num_faces, [top_face, back_face, left_face], [bottom_face, front_face, right_face]
         )
-
-    def validate_homology(self) -> None:
-        """Check the Betti numbers of the chain complex."""
-
-        # The first Betti number of T^4 is 4.
-        dim_ker_d1 = len(self.chain_complex.op(3)) - np.linalg.matrix_rank(self.chain_complex.op(3))  # type: ignore
-        dim_im_d2 = np.linalg.matrix_rank(self.chain_complex.op(2))  # type: ignore
-        assert dim_ker_d1 - dim_im_d2 == 4
-
-        # The second Betti number of T^4 is 6.
-        dim_ker_d2 = len(self.chain_complex.op(2)) - np.linalg.matrix_rank(self.chain_complex.op(2))  # type: ignore
-        dim_im_d3 = np.linalg.matrix_rank(self.chain_complex.op(1))  # type: ignore
-        assert dim_ker_d2 - dim_im_d3 == 6
 
 
 ####################################################################################################
